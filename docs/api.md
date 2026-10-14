@@ -56,3 +56,41 @@ Example response:
 
 | description | text or null | May be empty |
 
+## Get product details
+
+**GET** `/api/v1/products/{slug}`
+
+Returns the details of one active product using its unique slug.
+
+**Path parameter**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `slug` | string | Unique, readable product identifier |
+
+**Successful response — `200 OK`**
+
+Example:
+
+```json
+{
+  "id": "a793d09e-b438-4877-9339-3e840221aa7e",
+  "slug": "cotton-tshirt",
+  "name": "Cotton T-shirt",
+  "description": "100% cotton, regular fit"
+}
+```
+
+**Error response — `404 Not Found`**
+
+Returned when the product does not exist or is not active.
+
+Example:
+
+```json
+{
+  "title": "Resource Not Found",
+  "status": 404,
+  "detail": "Product not found: invalid-slug"
+}
+```
