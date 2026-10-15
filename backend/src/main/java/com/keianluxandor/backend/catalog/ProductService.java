@@ -24,7 +24,25 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public List<ProductResponse> listActiveProducts() {
-        List<Product> products = productRepository.findByStatusOrderByNameAsc(ProductStatus.ACTIVE);
+        return toResponses(productRepository.findByStatusOrderByNameAsc(ProductStatus.ACTIVE));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductResponse> listActiveProductsInCategory(UUID categoryId) {
+        return toResponses(productRepository.findByCategoryIdAndStatusOrderByNameAsc(categoryId, ProductStatus.ACTIVE));
+    }
+
+    @Transactional(readOnly = true)
+    public ProductResponse getActiveProduct(String slug) {
+        Product product = productRepository.findBySlugAndStatus(slug, ProductStatus.ACTIVE)
+                .orElseThrow(() -> new NotFoundException("Product not found: " + slug));
+
+        List<ProductImage> images = productImageRepository.findByProductIdOrderBySortOrderAsc(product.getId());
+
+        return ProductResponse.from(product, images);
+    }
+
+    private List<ProductResponse> toResponses(List<Product> products) {
         if (products.isEmpty()) {
             return List.of();
         }
@@ -41,15 +59,5 @@ public class ProductService {
                         product,
                         imagesByProduct.getOrDefault(product.getId(), List.of())))
                 .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public ProductResponse getActiveProduct(String slug) {
-        Product product = productRepository.findBySlugAndStatus(slug, ProductStatus.ACTIVE)
-                .orElseThrow(() -> new NotFoundException("Product not found: " + slug));
-
-        List<ProductImage> images = productImageRepository.findByProductIdOrderBySortOrderAsc(product.getId());
-
-        return ProductResponse.from(product, images);
     }
 }
