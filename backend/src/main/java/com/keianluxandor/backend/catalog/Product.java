@@ -1,5 +1,6 @@
 package com.keianluxandor.backend.catalog;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -35,6 +36,9 @@ public class Product {
     @Column(name = "category_id")
     private UUID categoryId;
 
+    @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
+    private Instant createdAt;
+
     protected Product() {
     }
 
@@ -60,5 +64,9 @@ public class Product {
 
     public UUID getCategoryId() {
         return categoryId;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
     }
 }

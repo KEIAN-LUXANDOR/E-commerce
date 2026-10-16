@@ -5,13 +5,20 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.keianluxandor.backend.common.NotFoundException;
+import com.keianluxandor.backend.common.PageResponse;
 
 @Service
 public class ProductService {
+
+    private static final int MAX_PAGE_SIZE = 50;
 
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
@@ -26,8 +33,30 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProductResponse> listActiveProducts() {
-        return toResponses(productRepository.findByStatusOrderByNameAsc(ProductStatus.ACTIVE));
+    public PageResponse<ProductResponse> searchActiveProducts(String q, String categorySlug,
+                                                              Long minPricePaise, Long maxPricePaise,
+                                                              String sort, int page, int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+
+        Sort order = "newest".equals(sort)
+                ? Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by("id"))
+                : Sort.by("name").and(Sort.by("id"));
+
+        Specification<Product> filters = Specification.allOf(
+                ProductSpecifications.isActive(),
+                ProductSpecifications.nameContains(q),
+                ProductSpecifications.inCategory(categorySlug),
+                ProductSpecifications.priceBetween(minPricePaise, maxPricePaise));
+
+        Page<Product> result = productRepository.findAll(filters, PageRequest.of(safePage, safeSize, order));
+
+        return new PageResponse<>(
+                toResponses(result.getContent()),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages());
     }
 
     @Transactional(readOnly = true)
