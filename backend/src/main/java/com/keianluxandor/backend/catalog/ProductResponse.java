@@ -8,14 +8,16 @@ public record ProductResponse(
         String slug,
         String name,
         String description,
-        List<ProductImageResponse> images) {
+        List<ProductImageResponse> images,
+        List<ProductVariantResponse> variants) {
 
-    static ProductResponse from(Product product, List<ProductImage> images) {
+    static ProductResponse from(Product product, List<ProductImage> images, List<ProductVariant> variants) {
         return new ProductResponse(
                 product.getId(),
                 product.getSlug(),
                 product.getName(),
                 product.getDescription(),
-                images.stream().map(ProductImageResponse::from).toList());
+                images.stream().map(ProductImageResponse::from).toList(),
+                variants.stream().map(ProductVariantResponse::from).toList());
     }
 }

@@ -15,11 +15,14 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
+    private final ProductVariantRepository productVariantRepository;
 
     public ProductService(ProductRepository productRepository,
-                          ProductImageRepository productImageRepository) {
+                          ProductImageRepository productImageRepository,
+                          ProductVariantRepository productVariantRepository) {
         this.productRepository = productRepository;
         this.productImageRepository = productImageRepository;
+        this.productVariantRepository = productVariantRepository;
     }
 
     @Transactional(readOnly = true)
@@ -38,8 +41,9 @@ public class ProductService {
                 .orElseThrow(() -> new NotFoundException("Product not found: " + slug));
 
         List<ProductImage> images = productImageRepository.findByProductIdOrderBySortOrderAsc(product.getId());
+        List<ProductVariant> variants = productVariantRepository.findByProductIdAndActiveTrueOrderBySortOrderAsc(product.getId());
 
-        return ProductResponse.from(product, images);
+        return ProductResponse.from(product, images, variants);
     }
 
     private List<ProductResponse> toResponses(List<Product> products) {
@@ -54,10 +58,16 @@ public class ProductService {
                 .stream()
                 .collect(Collectors.groupingBy(ProductImage::getProductId));
 
+        Map<UUID, List<ProductVariant>> variantsByProduct = productVariantRepository
+                .findByProductIdInAndActiveTrueOrderBySortOrderAsc(productIds)
+                .stream()
+                .collect(Collectors.groupingBy(ProductVariant::getProductId));
+
         return products.stream()
                 .map(product -> ProductResponse.from(
                         product,
-                        imagesByProduct.getOrDefault(product.getId(), List.of())))
+                        imagesByProduct.getOrDefault(product.getId(), List.of()),
+                        variantsByProduct.getOrDefault(product.getId(), List.of())))
                 .toList();
     }
 }
