@@ -208,3 +208,46 @@ A broken JSON body also returns 400 with the detail "The request body is missing
   "detail": "An account with this email already exists."
 }
 ```
+
+
+### How login works (for the website)
+- Login uses a session cookie (`JSESSIONID`). Every `fetch` must use `credentials: "include"`.
+- For every POST, PUT, PATCH or DELETE **except** register and login, first call `GET /api/v1/auth/csrf`
+  and send the returned token in the `X-CSRF-TOKEN` header. Get a new token after logging in.
+- Allowed website address locally: `http://localhost:3000`.
+
+### POST /api/v1/auth/login
+No CSRF token needed.
+
+**Request body**
+| Field | Type | Required |
+|---|---|---|
+| email | string | yes |
+| password | string | yes |
+
+**200 OK**: same body as register's 201 response, and a session cookie is set.
+
+**401 Unauthorized**: `"detail": "Invalid email or password."` (same message for unknown email and wrong password)
+
+**429 Too Many Requests**: after 5 wrong passwords for one email, it is locked for 15 minutes.
+
+### GET /api/v1/auth/me
+Returns the logged-in user (same body as register). **401** if not logged in.
+
+### GET /api/v1/auth/csrf
+```json
+{ "headerName": "X-CSRF-TOKEN", "token": "..." }
+```
+
+### POST /api/v1/auth/logout
+Needs the `X-CSRF-TOKEN` header. Returns **204 No Content** and clears the session cookie.
+
+### Access rules
+| Who | Can use |
+|---|---|
+| Anyone | GET products, categories, images; register; login; csrf |
+| Logged-in user | me, logout (and later cart, orders, addresses) |
+| ADMIN only | Everything under `/api/v1/admin/` |
+
+**401 Unauthorized**: not logged in.
+**403 Forbidden**: missing CSRF token, or a customer calling an admin API.

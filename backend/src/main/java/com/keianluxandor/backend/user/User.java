@@ -69,9 +69,12 @@ public class User {
         this.updatedAt = now;
     }
 
-    @PreUpdate
-    void onUpdate() {
-        this.updatedAt = Instant.now();
+    
+    // Only used when the server starts, to create the first admin from environment variables
+    public static User newAdmin(String email, String passwordHash, String fullName) {
+        User user = new User(email, passwordHash, fullName, null);
+        user.role = Role.ADMIN;
+        return user;
     }
 
     public UUID getId() {
