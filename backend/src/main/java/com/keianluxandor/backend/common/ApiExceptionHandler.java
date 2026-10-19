@@ -40,6 +40,32 @@ public class ApiExceptionHandler {
         return problem;
     }
 
+    // 401: wrong login details, or not logged in
+    @ExceptionHandler(UnauthorizedException.class)
+    public ProblemDetail handleUnauthorizedException(UnauthorizedException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNAUTHORIZED,
+                exception.getMessage()
+        );
+
+        problem.setTitle("Unauthorized");
+
+        return problem;
+    }
+
+    // 429: too many failed attempts
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ProblemDetail handleTooManyRequestsException(TooManyRequestsException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.TOO_MANY_REQUESTS,
+                exception.getMessage()
+        );
+
+        problem.setTitle("Too Many Requests");
+
+        return problem;
+    }
+
     // 400: one or more fields failed validation; lists every wrong field
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidationException(MethodArgumentNotValidException exception) {
@@ -63,7 +89,7 @@ public class ApiExceptionHandler {
         return problem;
     }
 
-    // 400: the request body is not valid JSON (e.g. a missing quote or bracket)
+    // 400: the request body is not valid JSON
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ProblemDetail handleUnreadableBody(HttpMessageNotReadableException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
