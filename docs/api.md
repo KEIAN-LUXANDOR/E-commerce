@@ -139,3 +139,72 @@ Returns all ACTIVE products in one category, sorted by name, as a plain list (no
 For paging and filters inside a category, use `GET /api/v1/products?category={slug}` instead.
 
 If the category does not exist, the API returns **404** with `"detail": "Category not found: {slug}"`.
+
+
+
+
+
+
+
+
+
+
+
+## Auth
+
+### POST /api/v1/auth/register
+Creates a customer account. Every new account gets the role CUSTOMER. Nobody can register as ADMIN.
+
+**Request body**
+| Field | Type | Required | Rules |
+|---|---|---|---|
+| email | string | yes | Valid email, max 255. Spaces removed, stored in lower case |
+| password | string | yes | 8 to 72 characters |
+| fullName | string | yes | Max 100 characters |
+| phone | string | no | 10-digit Indian mobile number |
+
+Example:
+```json
+{
+  "email": "riya@example.com",
+  "password": "Secret@123",
+  "fullName": "Riya Shah",
+  "phone": "9876543210"
+}
+```
+
+**201 Created**
+```json
+{
+  "id": "4b1f6c2e-...",
+  "email": "riya@example.com",
+  "fullName": "Riya Shah",
+  "phone": "9876543210",
+  "role": "CUSTOMER",
+  "emailVerified": false,
+  "createdAt": "2026-10-19T09:15:30Z"
+}
+```
+
+**400 Bad Request** (invalid input; lists every wrong field)
+```json
+{
+  "status": 400,
+  "title": "Invalid Input",
+  "detail": "One or more fields are invalid.",
+  "errors": [
+    { "field": "email", "message": "Enter a valid email address" },
+    { "field": "password", "message": "Password must be 8 to 72 characters" }
+  ]
+}
+```
+A broken JSON body also returns 400 with the detail "The request body is missing or is not valid JSON."
+
+**409 Conflict** (email already registered; capital letters are ignored)
+```json
+{
+  "status": 409,
+  "title": "Conflict",
+  "detail": "An account with this email already exists."
+}
+```
