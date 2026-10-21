@@ -251,3 +251,30 @@ Needs the `X-CSRF-TOKEN` header. Returns **204 No Content** and clears the sessi
 
 **401 Unauthorized**: not logged in.
 **403 Forbidden**: missing CSRF token, or a customer calling an admin API.
+
+
+
+### Email verification and password reset
+Rule: customers can log in before verifying, but must verify their email before placing an order.
+None of these need a CSRF token or login.
+
+| Method | Address | Body | Reply |
+|---|---|---|---|
+| POST | /api/v1/auth/verify-email | `{ "token": "..." }` | 200, or 400 if the link is invalid/expired/used |
+| POST | /api/v1/auth/resend-verification | `{ "email": "..." }` | Always 202 with the same message |
+| POST | /api/v1/auth/forgot-password | `{ "email": "..." }` | Always 202 with the same message |
+| POST | /api/v1/auth/reset-password | `{ "token": "...", "newPassword": "..." }` | 200, or 400 if the link is invalid/expired/used |
+
+Replies look like: `{ "message": "Your email address is verified." }`
+
+**Pages the website needs:**
+- `/verify-email?token=...`: read `token` from the address, send it to `/api/v1/auth/verify-email`, show the message.
+- `/reset-password?token=...`: show a "new password" form, then send `token` and `newPassword` to `/api/v1/auth/reset-password`.
+- A "Resend verification email" button and a "Forgot password?" link on the login page.
+
+Links: verification valid 24 hours, reset valid 30 minutes, each usable once.
+At most one resend / forgot-password email per address per minute.
+
+**Local email testing:** run Mailpit once with
+`docker run -d --name mailpit --restart unless-stopped -p 8025:8025 -p 1025:1025 axllent/mailpit`
+then open http://localhost:8025 to read the emails.

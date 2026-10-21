@@ -77,6 +77,13 @@ public class User {
         return user;
     }
 
+    public void markEmailVerified() {
+        this.emailVerified = true;
+    }
+
+    public void changePassword(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
+    }
     public UUID getId() {
         return id;
     }
