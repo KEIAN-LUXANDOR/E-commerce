@@ -27,6 +27,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final LoginAttemptService loginAttempts;
+    private final AccountService accountService;
 
     // Used when the email doesn't exist, so a wrong email takes as long as a wrong password.
     // This stops attackers from guessing which emails are registered by timing the response.
@@ -34,10 +35,12 @@ public class AuthService {
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
-                       LoginAttemptService loginAttempts) {
+                       LoginAttemptService loginAttempts,
+                       AccountService accountService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.loginAttempts = loginAttempts;
+        this.accountService = accountService;
         this.dummyHash = passwordEncoder.encode("not-a-real-password-just-for-timing");
     }
 
@@ -59,12 +62,18 @@ public class AuthService {
                 request.fullName(),
                 request.phone());
 
+        User saved;
         try {
-            return UserResponse.from(userRepository.saveAndFlush(user));
+            saved = userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException e) {
             // Two people registered the same email at the same moment; the database blocked one
             throw new ConflictException(EMAIL_TAKEN);
         }
+
+        // Email goes out after the save succeeds; registration never fails because of email
+        accountService.sendVerificationEmail(saved);
+
+        return UserResponse.from(saved);
     }
 
     // Checks email and password. Returns the user if correct.

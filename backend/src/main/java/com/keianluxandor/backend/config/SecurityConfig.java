@@ -22,18 +22,28 @@ import jakarta.servlet.http.HttpServletResponse;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    // Anyone can call these (the person isn't logged in yet), and they don't need a CSRF token
+    private static final String[] PUBLIC_AUTH_POSTS = {
+            "/api/v1/auth/register",
+            "/api/v1/auth/login",
+            "/api/v1/auth/verify-email",
+            "/api/v1/auth/resend-verification",
+            "/api/v1/auth/forgot-password",
+            "/api/v1/auth/reset-password"
+    };
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .cors(Customizer.withDefaults())
-            // CSRF token needed for every change, except creating an account and logging in
-            .csrf(csrf -> csrf.ignoringRequestMatchers("/api/v1/auth/register", "/api/v1/auth/login"))
+            // CSRF token needed for every change, except the public account actions above
+            .csrf(csrf -> csrf.ignoringRequestMatchers(PUBLIC_AUTH_POSTS))
             .authorizeHttpRequests(auth -> auth
                 // Public: anyone can browse the catalog
                 .requestMatchers(HttpMethod.GET, "/api/v1/products/**", "/api/v1/categories/**", "/images/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
-                // Public: create an account, log in, get a CSRF token
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                // Public: account actions and the CSRF token
+                .requestMatchers(HttpMethod.POST, PUBLIC_AUTH_POSTS).permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll()
                 .requestMatchers("/error").permitAll()
                 // Admin only: product management, all orders
