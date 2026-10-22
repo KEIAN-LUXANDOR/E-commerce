@@ -24,13 +24,16 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final DiamondDetailsRepository diamondDetailsRepository;
 
     public ProductService(ProductRepository productRepository,
                           ProductImageRepository productImageRepository,
-                          ProductVariantRepository productVariantRepository) {
+                          ProductVariantRepository productVariantRepository,
+                          DiamondDetailsRepository diamondDetailsRepository) {
         this.productRepository = productRepository;
         this.productImageRepository = productImageRepository;
         this.productVariantRepository = productVariantRepository;
+        this.diamondDetailsRepository = diamondDetailsRepository;
     }
 
     @Transactional(readOnly = true)
@@ -82,10 +85,11 @@ public class ProductService {
         Product product = productRepository.findBySlugAndStatus(slug, ProductStatus.ACTIVE)
                 .orElseThrow(() -> new NotFoundException("Product not found: " + slug));
 
+        DiamondDetails diamond = diamondDetailsRepository.findById(product.getId()).orElse(null);
         List<ProductImage> images = productImageRepository.findByProductIdOrderBySortOrderAsc(product.getId());
         List<ProductVariant> variants = productVariantRepository.findByProductIdAndActiveTrueOrderBySortOrderAsc(product.getId());
 
-        return ProductResponse.from(product, images, variants);
+        return ProductResponse.from(product, diamond, images, variants);
     }
 
     // Used by the wishlist: true if the product exists and is ACTIVE
@@ -114,12 +118,18 @@ public class ProductService {
         return toResponses(ordered);
     }
 
+    // Loads diamonds, images and variants for all products in 3 queries (not 3 per product)
     private List<ProductResponse> toResponses(List<Product> products) {
         if (products.isEmpty()) {
             return List.of();
         }
 
         List<UUID> productIds = products.stream().map(Product::getId).toList();
+
+        Map<UUID, DiamondDetails> diamondsByProduct = diamondDetailsRepository
+                .findAllById(productIds)
+                .stream()
+                .collect(Collectors.toMap(DiamondDetails::getProductId, diamond -> diamond));
 
         Map<UUID, List<ProductImage>> imagesByProduct = productImageRepository
                 .findByProductIdInOrderBySortOrderAsc(productIds)
@@ -134,6 +144,7 @@ public class ProductService {
         return products.stream()
                 .map(product -> ProductResponse.from(
                         product,
+                        diamondsByProduct.get(product.getId()),
                         imagesByProduct.getOrDefault(product.getId(), List.of()),
                         variantsByProduct.getOrDefault(product.getId(), List.of())))
                 .toList();
