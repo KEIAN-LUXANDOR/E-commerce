@@ -561,3 +561,40 @@ All need login. PUT and DELETE also need the `X-CSRF-TOKEN` header.
 ```
 
 Rules: only ACTIVE products can be added (**404** otherwise); products that are later archived disappear from the wishlist; maximum 100 products (**400**).
+
+
+
+
+
+## Profile and password
+All need login. PUT and POST also need the `X-CSRF-TOKEN` header.
+
+### PUT /api/v1/account/profile
+| Field | Required | Rules |
+|---|---|---|
+| fullName | yes | Max 100 |
+| phone | no | 10-digit Indian mobile number. Empty or missing removes it |
+
+**200**: same body as `/auth/me`. **400** for invalid fields.
+Email can't be changed here.
+
+### POST /api/v1/account/change-password
+```json
+{ "currentPassword": "...", "newPassword": "..." }
+```
+- **200** `{ "message": "Your password has been changed." }`. The customer stays logged in, and a "Your password was changed" email is sent.
+- **400**: current password wrong, new password the same as the current one, or not 8 to 72 characters.
+- **429**: after 5 wrong current passwords (same lock as login, 15 minutes).
+
+## Checkout eligibility
+### GET /api/v1/account/checkout-eligibility
+Call before showing checkout.
+- **200** `{ "canCheckout": true }`
+- **403** when the email isn't verified:
+```json
+{ "status": 403, "title": "Forbidden", "detail": "Please verify your email address before placing an order.", "code": "EMAIL_NOT_VERIFIED" }
+```
+On `EMAIL_NOT_VERIFIED`, show a message with a "Resend verification email" button (`POST /api/v1/auth/resend-verification`).
+Placing an order will do the same check on the server.
+
+**Note:** for POST, PUT and DELETE, a request without a CSRF token gets **403** before login is checked. With a token but not logged in, the reply is **401**.

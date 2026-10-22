@@ -129,4 +129,21 @@ public class ApiExceptionHandler {
 
         return problem;
     }
+
+    // 403: logged in, but not allowed yet (e.g. email not verified). "code" tells the website why.
+    @ExceptionHandler(ForbiddenException.class)
+    public ProblemDetail handleForbiddenException(ForbiddenException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.FORBIDDEN,
+                exception.getMessage()
+        );
+
+        problem.setTitle("Forbidden");
+
+        if (exception.getCode() != null) {
+            problem.setProperty("code", exception.getCode());
+        }
+
+        return problem;
+    }
 }
