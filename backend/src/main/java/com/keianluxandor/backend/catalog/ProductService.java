@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.Objects;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -98,5 +99,30 @@ public class ProductService {
                         imagesByProduct.getOrDefault(product.getId(), List.of()),
                         variantsByProduct.getOrDefault(product.getId(), List.of())))
                 .toList();
+    }
+    // Used by the wishlist: true if the product exists and is ACTIVE
+    @Transactional(readOnly = true)
+    public boolean isActiveProduct(UUID productId) {
+        return productRepository.findById(productId)
+                .map(product -> product.getStatus() == ProductStatus.ACTIVE)
+                .orElse(false);
+    }
+
+    // Used by the wishlist: ACTIVE products for these ids, in the same order as the ids
+    @Transactional(readOnly = true)
+    public List<ProductResponse> getActiveProductsByIds(List<UUID> productIds) {
+        if (productIds.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, Product> activeById = productRepository.findAllById(productIds).stream()
+                .filter(product -> product.getStatus() == ProductStatus.ACTIVE)
+                .collect(Collectors.toMap(Product::getId, product -> product));
+
+        List<Product> ordered = productIds.stream()
+                .map(activeById::get)
+                .filter(Objects::nonNull)
+                .toList();
+
+        return toResponses(ordered);
     }
 }

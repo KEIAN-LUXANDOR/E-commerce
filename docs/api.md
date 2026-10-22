@@ -278,3 +278,286 @@ At most one resend / forgot-password email per address per minute.
 **Local email testing:** run Mailpit once with
 `docker run -d --name mailpit --restart unless-stopped -p 8025:8025 -p 1025:1025 axllent/mailpit`
 then open http://localhost:8025 to read the emails.
+
+
+
+
+# Customer Delivery Addresses API
+
+Base URL: `http://localhost:8080`
+
+All endpoints below use the `/api/v1/account/addresses` base path.
+
+These endpoints allow authenticated customers to manage their delivery addresses. Customers can only manage their own addresses.
+
+## 1. List Delivery Addresses
+
+**Endpoint:** `GET /api/v1/account/addresses`
+
+Returns the delivery addresses belonging to the logged-in customer.
+
+**Authentication:** Required
+
+**Success response:** `200 OK`
+
+```json
+[
+  {
+    "id": "5bf63674-4813-4d92-9ceb-c7f56b067503",
+    "fullName": "Riya Shah",
+    "phone": "9876543210",
+    "line1": "10 Koregaon Park",
+    "line2": "Near Main Road",
+    "landmark": "Koregaon Park",
+    "city": "Pune",
+    "state": "Maharashtra",
+    "pincode": "411001",
+    "defaultAddress": true
+  }
+]
+```
+
+If the customer has no saved addresses, the API returns `200 OK` with an empty array:
+
+```json
+[]
+```
+
+## 2. Create Delivery Address
+
+**Endpoint:** `POST /api/v1/account/addresses`
+
+Creates a new delivery address for the logged-in customer.
+
+**Authentication:** Required
+
+**Request body:**
+
+```json
+{
+  "fullName": "Riya Shah",
+  "phone": "9876543210",
+  "line1": "123 MG Road",
+  "line2": "Near City Mall",
+  "landmark": "Near City Mall",
+  "city": "Pune",
+  "state": "Maharashtra",
+  "pincode": "411001"
+}
+```
+
+| Field | Type | Required |
+|---|---|---|
+| `fullName` | String | Yes |
+| `phone` | String | Yes |
+| `line1` | String | Yes |
+| `line2` | String | No |
+| `landmark` | String | No |
+| `city` | String | Yes |
+| `state` | String | Yes |
+| `pincode` | String | Yes |
+
+**Success response:** `201 Created`
+
+Returns the newly created address, including its generated `id` and `defaultAddress` status.
+
+The first address is automatically marked as the default. Subsequent addresses are not automatically made default.
+
+## 3. Get Indian States and Union Territories
+
+**Endpoint:** `GET /api/v1/account/addresses/states`
+
+Returns the supported Indian states and union territories.
+
+**Authentication:** Required
+
+**Success response:** `200 OK`
+
+```json
+[
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Andaman and Nicobar Islands",
+  "Chandigarh",
+  "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi",
+  "Jammu and Kashmir",
+  "Ladakh",
+  "Lakshadweep",
+  "Puducherry"
+]
+```
+
+## 4. Update Delivery Address
+
+**Endpoint:** `PUT /api/v1/account/addresses/{id}`
+
+Updates an existing address belonging to the logged-in customer.
+
+**Authentication:** Required
+
+**Path parameter:**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `id` | UUID | ID of the address to update |
+
+**Request body:**
+
+```json
+{
+  "fullName": "Riya Shah",
+  "phone": "9876543210",
+  "line1": "456 FC Road",
+  "line2": "Near College",
+  "landmark": "Central Pune",
+  "city": "Pune",
+  "state": "Maharashtra",
+  "pincode": "411004"
+}
+```
+
+**Success response:** `200 OK`
+
+Returns the updated address.
+
+Updating an address does not change its default status.
+
+## 5. Set Default Delivery Address
+
+**Endpoint:** `PUT /api/v1/account/addresses/{id}/default`
+
+Marks the specified address as the default delivery address for the logged-in customer.
+
+**Authentication:** Required
+
+**Path parameter:**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `id` | UUID | ID of the address to make default |
+
+**Success response:** `200 OK`
+
+Returns the updated address with:
+
+```json
+{
+  "id": "5bf63674-4813-4d92-9ceb-c7f56b067503",
+  "defaultAddress": true
+}
+```
+
+When the default address changes, the previously selected address is no longer the default.
+
+## 6. Delete Delivery Address
+
+**Endpoint:** `DELETE /api/v1/account/addresses/{id}`
+
+Deletes an address belonging to the logged-in customer.
+
+**Authentication:** Required
+
+**Path parameter:**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `id` | UUID | ID of the address to delete |
+
+**Success response:** `204 No Content`
+
+The response has no body. A subsequent request to list addresses can verify that the address was removed.
+
+## Authentication and Security
+
+- A customer must be logged in to access these endpoints.
+- Requests that modify data must include a valid CSRF token if required by the application's security configuration.
+- The CSRF token is sent using the `X-CSRF-TOKEN` header.
+- Address access must be restricted to the authenticated customer's own records.
+- Unauthenticated requests return `401 Unauthorized`.
+
+**Example unauthorized response:**
+
+```json
+{
+  "status": 401,
+  "title": "Unauthorized",
+  "detail": "Please log in to continue."
+}
+```
+
+## Database Migration
+
+The addresses feature introduces Flyway migration:
+
+`backend/src/main/resources/db/migration/V7__create_addresses.sql`
+
+The migration creates the `addresses` table used to store customer delivery addresses.
+
+## Testing Status
+
+The following operations have been manually tested successfully:
+
+- Creating a delivery address.
+- Listing saved addresses.
+- Retrieving Indian states and union territories.
+- Updating an address.
+- Changing the default address.
+- Deleting a non-default address.
+- Deleting the default address.
+- Returning an empty list after all addresses are deleted.
+
+Cross-customer authorization and the full automated test suite should also be verified before production release.
+
+
+
+
+
+## Wishlist
+All need login. PUT and DELETE also need the `X-CSRF-TOKEN` header.
+
+| Method | Address | Reply |
+|---|---|---|
+| GET | /api/v1/account/wishlist | 200, list of `{ product, addedAt }`, newest first |
+| GET | /api/v1/account/wishlist/ids | 200, list of product ids (for heart icons) |
+| PUT | /api/v1/account/wishlist/{productId} | 204. Adding the same product twice does nothing |
+| DELETE | /api/v1/account/wishlist/{productId} | 204. Also 204 if it wasn't in the wishlist |
+
+`product` has the same fields as the product API (id, slug, name, description, images, variants).
+
+```json
+[
+  {
+    "product": { "id": "…", "slug": "steel-bottle", "name": "Steel Water Bottle", "description": "…", "images": [], "variants": [ … ] },
+    "addedAt": "2026-10-22T04:15:30Z"
+  }
+]
+```
+
+Rules: only ACTIVE products can be added (**404** otherwise); products that are later archived disappear from the wishlist; maximum 100 products (**400**).
