@@ -11,6 +11,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import org.hibernate.annotations.Formula;
 
 @Entity
 @Table(name = "products")
@@ -38,7 +40,14 @@ public class Product {
 
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
+    
+    // Lowest active price of this product. Read-only, used for "sort by price".
+    @Formula("(select min(v.price_paise) from product_variants v where v.product_id = id and v.active)")
+    private Long fromPricePaise;
 
+    // This diamond's carat. Read-only, used for "sort by carat".
+    @Formula("(select d.carat from diamond_details d where d.product_id = id)")
+    private BigDecimal carat;
     protected Product() {
     }
 
@@ -68,5 +77,13 @@ public class Product {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Long getFromPricePaise() {
+        return fromPricePaise;
+    }
+
+    public BigDecimal getCarat() {
+        return carat;
     }
 }
