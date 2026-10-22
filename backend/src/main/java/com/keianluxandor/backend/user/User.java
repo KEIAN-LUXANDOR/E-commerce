@@ -123,4 +123,9 @@ public class User {
     public Instant getUpdatedAt() {
         return updatedAt;
     }
+
+    public void updateProfile(String fullName, String phone) {
+        this.fullName = fullName;
+        this.phone = phone;
+    }
 }
