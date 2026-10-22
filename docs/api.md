@@ -598,3 +598,13 @@ On `EMAIL_NOT_VERIFIED`, show a message with a "Resend verification email" butto
 Placing an order will do the same check on the server.
 
 **Note:** for POST, PUT and DELETE, a request without a CSRF token gets **403** before login is checked. With a token but not logged in, the reply is **401**.
+
+
+
+
+
+
+
+Values are UPPERCASE. A wrong value returns `400` with `"detail": "Invalid value for '<parameter>'."`.
+Response: `items`, `page`, `size`, `totalItems`, `totalPages`. Use `totalItems` for the "Diamonds (N)" count.
+Reset Filters = call with no filter parameters.
