@@ -608,3 +608,11 @@ Placing an order will do the same check on the server.
 Values are UPPERCASE. A wrong value returns `400` with `"detail": "Invalid value for '<parameter>'."`.
 Response: `items`, `page`, `size`, `totalItems`, `totalPages`. Use `totalItems` for the "Diamonds (N)" count.
 Reset Filters = call with no filter parameters.
+
+
+
+
+| GET | `/api/v1/account/cart` | ✔ | – | 200 cart |
+| PUT | `/api/v1/account/cart/items/{variantId}` | ✔ | ✔ | 204 |
+| DELETE | `/api/v1/account/cart/items/{variantId}` | ✔ | ✔ | 204 |
+| DELETE | `/api/v1/account/cart` | ✔ | ✔ | 204 |
