@@ -1,5 +1,7 @@
 package com.keianluxandor.backend.catalog;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -116,6 +118,42 @@ public class ProductService {
                 .toList();
 
         return toResponses(ordered);
+    }
+
+    // Used by the cart: live price and availability for each variant id.
+    // Variants whose product is not ACTIVE (archived, draft, deleted) are left out.
+    @Transactional(readOnly = true)
+    public Map<UUID, SellableVariant> findSellableVariants(Collection<UUID> variantIds) {
+        if (variantIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, UUID> productIdByVariant = productVariantRepository.findAllById(variantIds).stream()
+                .collect(Collectors.toMap(ProductVariant::getId, ProductVariant::getProductId));
+
+        Map<UUID, ProductResponse> products = getActiveProductsByIds(
+                productIdByVariant.values().stream().distinct().toList())
+                .stream()
+                .collect(Collectors.toMap(ProductResponse::id, product -> product));
+
+        Map<UUID, SellableVariant> result = new HashMap<>();
+        productIdByVariant.forEach((variantId, productId) -> {
+            ProductResponse product = products.get(productId);
+            if (product == null) {
+                return;
+            }
+            // product.variants() only contains ACTIVE variants
+            ProductVariantResponse variant = product.variants().stream()
+                    .filter(v -> v.id().equals(variantId))
+                    .findFirst()
+                    .orElse(null);
+
+            result.put(variantId, new SellableVariant(
+                    variantId,
+                    product,
+                    variant == null ? null : variant.pricePaise(),
+                    variant != null && variant.inStock()));
+        });
+        return result;
     }
 
     // Loads diamonds, images and variants for all products in 3 queries (not 3 per product)
