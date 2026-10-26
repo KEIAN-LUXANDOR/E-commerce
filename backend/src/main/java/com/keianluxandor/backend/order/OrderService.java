@@ -152,6 +152,19 @@ public class OrderService {
     }
 
     // Puts every diamond back on sale and marks the order CANCELLED.
+    // Used by the expiry job: cancels the order only if it is still unpaid and its time is up.
+    // The row lock means a payment arriving at the same moment can't clash with this.
+    @Transactional
+    public boolean expireIfUnpaid(UUID orderId) {
+        CustomerOrder order = orderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (order == null
+                || order.getStatus() != OrderStatus.PENDING_PAYMENT
+                || order.getExpiresAt().isAfter(Instant.now())) {
+            return false;
+        }
+        cancelAndRelease(order, "PAYMENT_TIMEOUT");
+        return true;
+    }
     // Also used by the automatic expiry (Part C).
     void cancelAndRelease(CustomerOrder order, String reason) {
         order.getItems().stream()
