@@ -2,6 +2,8 @@ package com.keianluxandor.backend.order;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -151,7 +153,6 @@ public class OrderService {
         return OrderResponse.from(order);
     }
 
-    // Puts every diamond back on sale and marks the order CANCELLED.
     // Used by the expiry job: cancels the order only if it is still unpaid and its time is up.
     // The row lock means a payment arriving at the same moment can't clash with this.
     @Transactional
@@ -165,13 +166,53 @@ public class OrderService {
         cancelAndRelease(order, "PAYMENT_TIMEOUT");
         return true;
     }
-    // Also used by the automatic expiry (Part C).
+
+    // Called when Razorpay confirms a payment for this order.
+    // Locks the order row, so the expiry job or a second payment can't change it at the same moment.
+    @Transactional
+    public PaymentOutcome confirmPayment(UUID orderId) {
+        CustomerOrder order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new NotFoundException("Order not found."));
+        Instant now = Instant.now();
+
+        return switch (order.getStatus()) {
+            case PENDING_PAYMENT -> {
+                order.markPaid(now);
+                yield PaymentOutcome.PAID;
+            }
+            case PAID, SHIPPED, DELIVERED -> PaymentOutcome.ALREADY_PAID;
+            case CANCELLED -> {
+                // Paid after the order expired or was cancelled: take the diamonds again if nobody bought them
+                if (reserveAll(order)) {
+                    order.reopenAsPaid(now);
+                    yield PaymentOutcome.PAID;
+                }
+                yield PaymentOutcome.NEEDS_REFUND;
+            }
+            case REFUNDED -> PaymentOutcome.NEEDS_REFUND;
+        };
+    }
+
+    // Puts every diamond back on sale and marks the order CANCELLED.
     void cancelAndRelease(CustomerOrder order, String reason) {
         order.getItems().stream()
                 .map(OrderItem::getVariantId)
                 .filter(Objects::nonNull)
                 .forEach(stockService::releaseOne);
         order.cancel(reason, Instant.now());
+    }
+
+    // Reserves every diamond of the order again. If one is already gone, gives back the ones taken.
+    private boolean reserveAll(CustomerOrder order) {
+        List<UUID> taken = new ArrayList<>();
+        for (OrderItem item : order.getItems()) {
+            if (item.getVariantId() == null || !stockService.reserveOne(item.getVariantId())) {
+                taken.forEach(stockService::releaseOne);
+                return false;
+            }
+            taken.add(item.getVariantId());
+        }
+        return true;
     }
 
     private static ShippingAddress toShippingAddress(Address address) {

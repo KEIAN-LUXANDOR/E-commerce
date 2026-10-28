@@ -123,12 +123,34 @@ public class CustomerOrder {
         this.cancelReason = reason;
     }
 
-    @PrePersist
-    void onCreate() {
-        Instant now = Instant.now();
-        this.createdAt = now;
-        this.updatedAt = now;
+   // Payment confirmed by Razorpay
+void markPaid(Instant now) {
+    if (status != OrderStatus.PENDING_PAYMENT) {
+        throw new IllegalStateException("Only unpaid orders can be marked as paid");
     }
+
+    this.status = OrderStatus.PAID;
+    this.paidAt = now;
+}
+
+// Payment arrived after the order had expired, and its diamonds could be reserved again
+void reopenAsPaid(Instant now) {
+    if (status != OrderStatus.CANCELLED) {
+        throw new IllegalStateException("Only cancelled orders can be reopened");
+    }
+
+    this.status = OrderStatus.PAID;
+    this.paidAt = now;
+    this.cancelledAt = null;
+    this.cancelReason = null;
+}
+
+@PrePersist
+void onCreate() {
+    Instant now = Instant.now();
+    this.createdAt = now;
+    this.updatedAt = now;
+}
 
     @PreUpdate
     void onUpdate() {
