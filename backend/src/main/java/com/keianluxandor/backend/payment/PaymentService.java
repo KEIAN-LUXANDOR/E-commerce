@@ -16,6 +16,7 @@ import com.keianluxandor.backend.auth.AuthUser;
 import com.keianluxandor.backend.common.ConflictException;
 import com.keianluxandor.backend.common.NotFoundException;
 import com.keianluxandor.backend.order.CustomerOrder;
+import com.keianluxandor.backend.order.OrderEmailService;
 import com.keianluxandor.backend.order.OrderRepository;
 import com.keianluxandor.backend.order.OrderService;
 import com.keianluxandor.backend.order.OrderStatus;
@@ -30,15 +31,18 @@ public class PaymentService {
 
     private final OrderRepository orderRepository;
     private final OrderService orderService;
+    private final OrderEmailService orderEmailService;
     private final PaymentRepository paymentRepository;
     private final RazorpayClient razorpay;
 
     public PaymentService(OrderRepository orderRepository,
                           OrderService orderService,
+                          OrderEmailService orderEmailService,
                           PaymentRepository paymentRepository,
                           RazorpayClient razorpay) {
         this.orderRepository = orderRepository;
         this.orderService = orderService;
+        this.orderEmailService = orderEmailService;
         this.paymentRepository = paymentRepository;
         this.razorpay = razorpay;
     }
@@ -124,10 +128,26 @@ public class PaymentService {
         return PaymentResultResponse.of(orderNumber, status);
     }
 
-    // Shared by the checkout callback and the webhook (Part D2). The payment row must already be locked.
+    // Webhook from Razorpay: a payment was captured (the signature was already checked)
+    @Transactional
+    public void handleCapturedPayment(String razorpayOrderId, String razorpayPaymentId, long amountPaise) {
+        Payment payment = paymentRepository.findByProviderOrderIdForUpdate(razorpayOrderId).orElse(null);
+        if (payment == null) {
+            log.warn("Webhook for a Razorpay order we don't know: {}", razorpayOrderId);
+            return;
+        }
+        if (payment.getAmountPaise() != amountPaise) {
+            log.error("Webhook amount {} does not match expected {} for Razorpay order {}",
+                    amountPaise, payment.getAmountPaise(), razorpayOrderId);
+            return;
+        }
+        recordSuccessfulPayment(payment, razorpayPaymentId);
+    }
+
+    // Shared by the checkout callback and the webhook. The payment row must already be locked.
     PaymentStatus recordSuccessfulPayment(Payment payment, String razorpayPaymentId) {
         if (payment.getStatus() != PaymentStatus.CREATED) {
-            return payment.getStatus(); // already recorded: nothing to do
+            return payment.getStatus(); // already recorded by the other path: nothing to do
         }
 
         PaymentOutcome outcome = orderService.confirmPayment(payment.getOrderId());
@@ -140,9 +160,13 @@ public class PaymentService {
                 || (outcome == PaymentOutcome.ALREADY_PAID && anotherPaymentPaid)) {
             payment.markRefundRequired(razorpayPaymentId);
             log.warn("Payment {} for order {} must be refunded ({})", razorpayPaymentId, payment.getOrderId(), outcome);
+            orderEmailService.sendRefundNotice(payment.getOrderId(), payment.getAmountPaise());
         } else {
             payment.markPaid(razorpayPaymentId);
             log.info("Payment {} received for order {}", razorpayPaymentId, payment.getOrderId());
+            if (outcome == PaymentOutcome.PAID) {
+                orderEmailService.sendOrderConfirmed(payment.getOrderId());
+            }
         }
         return payment.getStatus();
     }
