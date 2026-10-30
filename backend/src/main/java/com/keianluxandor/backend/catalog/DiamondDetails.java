@@ -62,6 +62,34 @@ public class DiamondDetails {
     @Column(name = "quick_ship", nullable = false)
     private boolean quickShip;
 
+    // ---- V14: certificate, measurements, growth type, 360 video (all optional) ----
+
+    @Column(name = "certificate_number", length = 20)
+    private String certificateNumber;
+
+    // HPHT or CVD for lab-grown diamonds
+    @Column(name = "growth_type", length = 10)
+    private String growthType;
+
+    @Column(name = "length_mm", precision = 5, scale = 2)
+    private BigDecimal lengthMm;
+
+    @Column(name = "width_mm", precision = 5, scale = 2)
+    private BigDecimal widthMm;
+
+    @Column(name = "depth_mm", precision = 5, scale = 2)
+    private BigDecimal depthMm;
+
+    @Column(name = "table_pct", precision = 4, scale = 1)
+    private BigDecimal tablePct;
+
+    @Column(name = "depth_pct", precision = 4, scale = 1)
+    private BigDecimal depthPct;
+
+    // 360 viewer page or video of this stone
+    @Column(name = "video_url", length = 1000)
+    private String videoUrl;
+
     protected DiamondDetails() {
     }
 
@@ -77,4 +105,12 @@ public class DiamondDetails {
     public DiamondGrades.Fluorescence getFluorescence() { return fluorescence; }
     public DiamondGrades.Lab getLab() { return lab; }
     public boolean isQuickShip() { return quickShip; }
+    public String getCertificateNumber() { return certificateNumber; }
+    public String getGrowthType() { return growthType; }
+    public BigDecimal getLengthMm() { return lengthMm; }
+    public BigDecimal getWidthMm() { return widthMm; }
+    public BigDecimal getDepthMm() { return depthMm; }
+    public BigDecimal getTablePct() { return tablePct; }
+    public BigDecimal getDepthPct() { return depthPct; }
+    public String getVideoUrl() { return videoUrl; }
 }
