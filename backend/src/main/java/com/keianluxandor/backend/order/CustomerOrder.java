@@ -91,13 +91,14 @@ public class CustomerOrder {
     protected CustomerOrder() {
     }
 
-    CustomerOrder(String orderNumber, UUID userId, ShippingAddress shippingAddress, Instant expiresAt) {
+       CustomerOrder(String orderNumber, UUID userId, ShippingAddress shippingAddress, Instant expiresAt,
+                  String currency) {
         this.orderNumber = orderNumber;
         this.userId = userId;
         this.shippingAddress = shippingAddress;
         this.expiresAt = expiresAt;
         this.status = OrderStatus.PENDING_PAYMENT;
-        this.currency = CURRENCY;
+        this.currency = currency;
     }
 
     void addItem(UUID productId, UUID variantId, String productSlug, String productName,

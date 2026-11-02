@@ -1,5 +1,6 @@
 package com.keianluxandor.backend.order;
 
+import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
@@ -18,9 +19,9 @@ import com.keianluxandor.backend.user.UserRepository;
 @Service
 public class OrderEmailService {
 
-    private static final DateTimeFormatter INDIA_TIME = DateTimeFormatter
+    private static final DateTimeFormatter UTC_TIME = DateTimeFormatter
             .ofPattern("d MMM yyyy, h:mm a", Locale.ENGLISH)
-            .withZone(ZoneId.of("Asia/Kolkata"));
+            .withZone(ZoneId.of("UTC"));
 
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
@@ -42,13 +43,14 @@ public class OrderEmailService {
         if (order == null) {
             return;
         }
+        String currency = order.getCurrency();
         userRepository.findById(order.getUserId()).ifPresent(user -> {
             StringBuilder text = new StringBuilder();
             text.append("Hello ").append(user.getFullName()).append(",\n\n")
                     .append("Thank you! We have received your payment and your order is confirmed.\n\n")
                     .append("Order number: ").append(order.getOrderNumber()).append('\n');
             if (order.getPaidAt() != null) {
-                text.append("Paid on: ").append(INDIA_TIME.format(order.getPaidAt())).append(" IST\n");
+                text.append("Paid on: ").append(UTC_TIME.format(order.getPaidAt())).append(" (UTC)\n");
             }
             text.append("\nItems:\n");
             for (OrderItem item : order.getItems()) {
@@ -56,10 +58,9 @@ public class OrderEmailService {
                 if (item.getDescription() != null) {
                     text.append(" (").append(item.getDescription()).append(')');
                 }
-                text.append(" - ").append(rupees(item.getPricePaise())).append('\n');
+                text.append(" - ").append(money(item.getPricePaise(), currency)).append('\n');
             }
-            text.append("\nTotal paid: ").append(rupees(order.getTotalPaise()))
-                    .append(" (inclusive of all taxes)\n\n")
+            text.append("\nTotal paid: ").append(money(order.getTotalPaise(), currency)).append("\n\n")
                     .append("Delivery address:\n").append(address(order.getShippingAddress())).append('\n')
                     .append("We will email you again when your order is shipped.\n")
                     .append("View your order: ").append(frontendUrl).append("/orders/")
@@ -70,14 +71,14 @@ public class OrderEmailService {
         });
     }
 
-    public void sendRefundNotice(UUID orderId, long amountPaise) {
+    public void sendRefundNotice(UUID orderId, long amountMinor) {
         CustomerOrder order = orderRepository.findById(orderId).orElse(null);
         if (order == null) {
             return;
         }
         userRepository.findById(order.getUserId()).ifPresent(user -> {
             String text = "Hello " + user.getFullName() + ",\n\n"
-                    + "We received your payment of " + rupees(amountPaise) + " for order "
+                    + "We received your payment of " + money(amountMinor, order.getCurrency()) + " for order "
                     + order.getOrderNumber() + ".\n\n"
                     + "Unfortunately the payment arrived after the order had expired, and a diamond in it "
                     + "was bought by another customer in the meantime, so we cannot complete this order.\n\n"
@@ -89,11 +90,25 @@ public class OrderEmailService {
         });
     }
 
-        // e.g. 18500000 paise -> "Rs. 1,85,000.00"
-    // Indian grouping: last 3 digits, then groups of 2 (Java's NumberFormat can't do this)
-    private static String rupees(long paise) {
-        String digits = Long.toString(paise / 100);
-        long fraction = paise % 100;
+    // Amount in the smallest unit -> text.
+    // 34800 + USD -> "$348.00";  3070000 + INR -> "Rs. 30,700.00" (Indian grouping)
+    static String money(long minorUnits, String currency) {
+        if ("INR".equals(currency)) {
+            return "Rs. " + indianGrouping(minorUnits);
+        }
+        String symbol = switch (currency) {
+            case "USD" -> "$";
+            case "EUR" -> "EUR ";
+            case "GBP" -> "GBP ";
+            default -> currency + " ";
+        };
+        return symbol + String.format(Locale.US, "%,.2f", BigDecimal.valueOf(minorUnits, 2));
+    }
+
+    // 18500000 -> "1,85,000.00": last 3 digits, then groups of 2
+    private static String indianGrouping(long minorUnits) {
+        String digits = Long.toString(minorUnits / 100);
+        long fraction = minorUnits % 100;
         String grouped;
         if (digits.length() <= 3) {
             grouped = digits;
@@ -110,7 +125,7 @@ public class OrderEmailService {
             }
             grouped = pairs + "," + lastThree;
         }
-        return "Rs. " + grouped + "." + (fraction < 10 ? "0" : "") + fraction;
+        return grouped + "." + (fraction < 10 ? "0" : "") + fraction;
     }
 
     private static String address(ShippingAddress a) {
