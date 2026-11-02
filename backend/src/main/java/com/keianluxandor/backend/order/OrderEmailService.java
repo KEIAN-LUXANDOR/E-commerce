@@ -90,6 +90,24 @@ public class OrderEmailService {
         });
     }
 
+   // The customer paid twice for the same order (e.g. two browser tabs). The first payment counts.
+    public void sendDuplicatePaymentNotice(UUID orderId, long amountMinor) {
+        CustomerOrder order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) {
+            return;
+        }
+        userRepository.findById(order.getUserId()).ifPresent(user -> {
+            String text = "Hello " + user.getFullName() + ",\n\n"
+                    + "Your order " + order.getOrderNumber() + " is already paid and confirmed.\n\n"
+                    + "We also received a second payment of " + money(amountMinor, order.getCurrency())
+                    + " for the same order, probably because the payment was made twice.\n\n"
+                    + "We will refund this second payment in full to your original payment method and "
+                    + "email you when the refund is done. You don't need to do anything.\n\n"
+                    + "Keian Luxandor";
+            sendAfterCommit(user.getEmail(), "Second payment for order " + order.getOrderNumber()
+                    + " - refund on its way", text);
+        });
+    }
     // Amount in the smallest unit -> text.
     // 34800 + USD -> "$348.00";  3070000 + INR -> "Rs. 30,700.00" (Indian grouping)
     static String money(long minorUnits, String currency) {

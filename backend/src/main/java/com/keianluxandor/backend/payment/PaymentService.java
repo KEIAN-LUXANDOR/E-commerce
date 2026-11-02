@@ -150,14 +150,21 @@ public class PaymentService {
             return payment.getStatus(); // already recorded by the other path: nothing to do
         }
 
+        // Locks the order row and re-reads it, so a payment saved a moment ago by another request is seen
         PaymentOutcome outcome = orderService.confirmPayment(payment.getOrderId());
 
         // Checked AFTER confirmPayment, which holds the order lock, so we see any other finished payment
         boolean anotherPaymentPaid = paymentRepository.existsByOrderIdAndStatusAndIdNot(
                 payment.getOrderId(), PaymentStatus.PAID, payment.getId());
 
-        if (outcome == PaymentOutcome.NEEDS_REFUND
-                || (outcome == PaymentOutcome.ALREADY_PAID && anotherPaymentPaid)) {
+        if (anotherPaymentPaid) {
+            // The customer paid twice for the same order (e.g. two browser tabs).
+            // The first payment counts; this one must be refunded.
+            payment.markRefundRequired(razorpayPaymentId);
+            log.warn("Duplicate payment {} for order {} must be refunded", razorpayPaymentId, payment.getOrderId());
+            orderEmailService.sendDuplicatePaymentNotice(payment.getOrderId(), payment.getAmountPaise());
+        } else if (outcome == PaymentOutcome.NEEDS_REFUND) {
+            // Paid after the order expired and the diamond was sold to someone else
             payment.markRefundRequired(razorpayPaymentId);
             log.warn("Payment {} for order {} must be refunded ({})", razorpayPaymentId, payment.getOrderId(), outcome);
             orderEmailService.sendRefundNotice(payment.getOrderId(), payment.getAmountPaise());

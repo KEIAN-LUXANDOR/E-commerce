@@ -16,6 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
 import com.keianluxandor.backend.address.Address;
 import com.keianluxandor.backend.address.AddressRepository;
 import com.keianluxandor.backend.cart.CartLineResponse;
@@ -44,6 +47,10 @@ public class OrderService {
     private final AddressRepository addressRepository;
     private final EmailVerificationGuard emailVerificationGuard;
     private final String storeCurrency;
+
+    // Used to re-read an order after locking it (see confirmPayment)
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public OrderService(OrderRepository orderRepository,
                         CartService cartService,
@@ -178,6 +185,11 @@ public class OrderService {
     public PaymentOutcome confirmPayment(UUID orderId) {
         CustomerOrder order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new NotFoundException("Order not found."));
+
+        // verifyPayment may have read this order earlier in the same transaction, before we waited
+        // for the lock. Re-read it, so we see a payment another request has just saved.
+        entityManager.refresh(order);
+
         Instant now = Instant.now();
 
         return switch (order.getStatus()) {
