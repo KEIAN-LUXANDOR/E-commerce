@@ -104,7 +104,7 @@ public class PaymentService {
                 order.getExpiresAt(),
                 ship.fullName(),
                 user.email(),
-                "+91" + ship.phone());
+                ship.phone());   // already has the country code, e.g. +14155550100
     }
 
     // Checkout success callback from the website

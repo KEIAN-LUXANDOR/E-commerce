@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.keianluxandor.backend.address.Countries;
 import com.keianluxandor.backend.mail.EmailService;
 import com.keianluxandor.backend.user.UserRepository;
 
@@ -71,6 +72,7 @@ public class OrderEmailService {
         });
     }
 
+    // Paid after the order expired, and a diamond was sold to someone else in the meantime
     public void sendRefundNotice(UUID orderId, long amountMinor) {
         CustomerOrder order = orderRepository.findById(orderId).orElse(null);
         if (order == null) {
@@ -90,7 +92,7 @@ public class OrderEmailService {
         });
     }
 
-   // The customer paid twice for the same order (e.g. two browser tabs). The first payment counts.
+    // The customer paid twice for the same order (e.g. two browser tabs). The first payment counts.
     public void sendDuplicatePaymentNotice(UUID orderId, long amountMinor) {
         CustomerOrder order = orderRepository.findById(orderId).orElse(null);
         if (order == null) {
@@ -108,8 +110,9 @@ public class OrderEmailService {
                     + " - refund on its way", text);
         });
     }
+
     // Amount in the smallest unit -> text.
-    // 34800 + USD -> "$348.00";  3070000 + INR -> "Rs. 30,700.00" (Indian grouping)
+    // 11615 + USD -> "$116.15";  3070000 + INR -> "Rs. 30,700.00" (Indian grouping)
     static String money(long minorUnits, String currency) {
         if ("INR".equals(currency)) {
             return "Rs. " + indianGrouping(minorUnits);
@@ -146,6 +149,8 @@ public class OrderEmailService {
         return grouped + "." + (fraction < 10 ? "0" : "") + fraction;
     }
 
+    // Delivery address for the email. State and postal code are left out when the country has none.
+    // e.g. "San Francisco, CA 94105" / "London SW1A 2AA" / "Dubai", then the country name
     private static String address(ShippingAddress a) {
         StringBuilder text = new StringBuilder();
         text.append("  ").append(a.fullName()).append(", ").append(a.phone()).append('\n');
@@ -156,7 +161,17 @@ public class OrderEmailService {
         if (a.landmark() != null) {
             text.append("  ").append(a.landmark()).append('\n');
         }
-        text.append("  ").append(a.city()).append(", ").append(a.state()).append(' ').append(a.pincode()).append('\n');
+        text.append("  ").append(a.city());
+        if (a.state() != null) {
+            text.append(", ").append(a.state());
+        }
+        if (a.pincode() != null) {
+            text.append(' ').append(a.pincode());
+        }
+        text.append('\n');
+        if (a.country() != null) {
+            text.append("  ").append(Countries.name(a.country())).append('\n');
+        }
         return text.toString();
     }
 

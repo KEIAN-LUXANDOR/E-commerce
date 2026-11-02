@@ -12,6 +12,8 @@ public record AddressResponse(
         String city,
         String state,
         String pincode,
+        String country,
+        String countryName,
         boolean defaultAddress
 ) {
     static AddressResponse from(Address address) {
@@ -25,6 +27,8 @@ public record AddressResponse(
                 address.getCity(),
                 address.getState(),
                 address.getPincode(),
+                address.getCountry(),
+                Countries.name(address.getCountry()),
                 address.isDefaultAddress());
     }
 }

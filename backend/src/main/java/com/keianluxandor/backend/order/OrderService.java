@@ -21,6 +21,8 @@ import jakarta.persistence.PersistenceContext;
 
 import com.keianluxandor.backend.address.Address;
 import com.keianluxandor.backend.address.AddressRepository;
+import com.keianluxandor.backend.address.Countries;
+import com.keianluxandor.backend.address.ShippingCountries;
 import com.keianluxandor.backend.cart.CartLineResponse;
 import com.keianluxandor.backend.cart.CartResponse;
 import com.keianluxandor.backend.cart.CartService;
@@ -46,6 +48,7 @@ public class OrderService {
     private final StockService stockService;
     private final AddressRepository addressRepository;
     private final EmailVerificationGuard emailVerificationGuard;
+    private final ShippingCountries shippingCountries;
     private final String storeCurrency;
 
     // Used to re-read an order after locking it (see confirmPayment)
@@ -57,12 +60,14 @@ public class OrderService {
                         StockService stockService,
                         AddressRepository addressRepository,
                         EmailVerificationGuard emailVerificationGuard,
+                        ShippingCountries shippingCountries,
                         @Value("${app.store.currency:USD}") String storeCurrency) {
         this.orderRepository = orderRepository;
         this.cartService = cartService;
         this.stockService = stockService;
         this.addressRepository = addressRepository;
         this.emailVerificationGuard = emailVerificationGuard;
+        this.shippingCountries = shippingCountries;
         this.storeCurrency = storeCurrency;
     }
 
@@ -79,6 +84,12 @@ public class OrderService {
 
         Address address = addressRepository.findByIdAndUserId(addressId, userId)
                 .orElseThrow(() -> new NotFoundException("Address not found."));
+
+        // The list of delivery countries may have changed since the address was saved
+        if (!shippingCountries.isAllowed(address.getCountry())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Sorry, we don't deliver to "
+                    + Countries.name(address.getCountry()) + " yet. Please choose another address.");
+        }
 
         CartResponse cart = cartService.getCart(userId);
         if (cart.items().isEmpty()) {
@@ -232,6 +243,7 @@ public class OrderService {
         return true;
     }
 
+    // Copy of the address at the time of ordering (country included)
     private static ShippingAddress toShippingAddress(Address address) {
         return new ShippingAddress(
                 address.getFullName(),
@@ -241,7 +253,8 @@ public class OrderService {
                 address.getLandmark(),
                 address.getCity(),
                 address.getState(),
-                address.getPincode());
+                address.getPincode(),
+                address.getCountry());
     }
 
     private static String skuOf(ProductResponse product, UUID variantId) {
