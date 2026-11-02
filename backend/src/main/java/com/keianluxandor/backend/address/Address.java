@@ -26,7 +26,8 @@ public class Address {
     @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
 
-    @Column(nullable = false, length = 10)
+    // With country code, e.g. +14155550100
+    @Column(nullable = false, length = 16)
     private String phone;
 
     @Column(nullable = false, length = 200)
@@ -41,11 +42,17 @@ public class Address {
     @Column(nullable = false, length = 80)
     private String city;
 
-    @Column(nullable = false, length = 60)
+    // State / province / region (empty for many countries)
+    @Column(length = 100)
     private String state;
 
-    @Column(nullable = false, length = 6)
+    // Postal code / ZIP / PIN code (empty for countries without one)
+    @Column(length = 10)
     private String pincode;
+
+    // 2-letter country code: US, GB, AE, IN ...
+    @Column(nullable = false, length = 2)
+    private String country;
 
     @Column(name = "is_default", nullable = false)
     private boolean defaultAddress;
@@ -63,16 +70,17 @@ public class Address {
         this.userId = userId;
     }
 
-    // Copies the fields from the request. The state is already checked.
-    void apply(AddressRequest request, String validState) {
+    // Copies the fields from the request. Country, phone, state and postal code are already checked.
+    void apply(AddressRequest request, String country, String phone, String state, String pincode) {
         this.fullName = request.fullName();
-        this.phone = request.phone();
+        this.phone = phone;
         this.line1 = request.line1();
         this.line2 = request.line2();
         this.landmark = request.landmark();
         this.city = request.city();
-        this.state = validState;
-        this.pincode = request.pincode();
+        this.state = state;
+        this.pincode = pincode;
+        this.country = country;
     }
 
     void setDefaultAddress(boolean defaultAddress) {
@@ -91,16 +99,55 @@ public class Address {
         this.updatedAt = Instant.now();
     }
 
-    public UUID getId() { return id; }
-    public UUID getUserId() { return userId; }
-    public String getFullName() { return fullName; }
-    public String getPhone() { return phone; }
-    public String getLine1() { return line1; }
-    public String getLine2() { return line2; }
-    public String getLandmark() { return landmark; }
-    public String getCity() { return city; }
-    public String getState() { return state; }
-    public String getPincode() { return pincode; }
-    public boolean isDefaultAddress() { return defaultAddress; }
-    public Instant getCreatedAt() { return createdAt; }
+    public UUID getId() {
+        return id;
+    }
+
+    public UUID getUserId() {
+        return userId;
+    }
+
+    public String getFullName() {
+        return fullName;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public String getLine1() {
+        return line1;
+    }
+
+    public String getLine2() {
+        return line2;
+    }
+
+    public String getLandmark() {
+        return landmark;
+    }
+
+    public String getCity() {
+        return city;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public String getPincode() {
+        return pincode;
+    }
+
+    public String getCountry() {
+        return country;
+    }
+
+    public boolean isDefaultAddress() {
+        return defaultAddress;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 }

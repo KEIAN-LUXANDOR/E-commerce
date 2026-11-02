@@ -25,9 +25,11 @@ import jakarta.validation.Valid;
 public class AddressController {
 
     private final AddressService addressService;
+    private final ShippingCountries shippingCountries;
 
-    public AddressController(AddressService addressService) {
+    public AddressController(AddressService addressService, ShippingCountries shippingCountries) {
         this.addressService = addressService;
+        this.shippingCountries = shippingCountries;
     }
 
     @GetMapping
@@ -35,6 +37,13 @@ public class AddressController {
         return addressService.list(user.id());
     }
 
+    // Countries we deliver to, for the country dropdown
+    @GetMapping("/countries")
+    public List<CountryResponse> countries() {
+        return shippingCountries.list();
+    }
+
+    // Indian states, for the state dropdown when the country is India
     @GetMapping("/states")
     public List<String> states() {
         return IndianStates.ALL;
