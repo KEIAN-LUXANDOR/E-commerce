@@ -42,6 +42,16 @@ public final class Countries {
     // International phone format after cleaning: + then 7 to 15 digits
     private static final Pattern PHONE = Pattern.compile("^\\+[1-9]\\d{6,14}$");
 
+    // Dial codes, so a number typed without "+code" can still be accepted
+    private static final Map<String, String> DIAL_CODES = Map.ofEntries(
+            Map.entry("US", "1"), Map.entry("CA", "1"), Map.entry("GB", "44"), Map.entry("IE", "353"),
+            Map.entry("AE", "971"), Map.entry("SA", "966"), Map.entry("QA", "974"), Map.entry("KW", "965"),
+            Map.entry("BH", "973"), Map.entry("OM", "968"), Map.entry("AU", "61"), Map.entry("NZ", "64"),
+            Map.entry("SG", "65"), Map.entry("HK", "852"), Map.entry("MY", "60"), Map.entry("JP", "81"),
+            Map.entry("DE", "49"), Map.entry("FR", "33"), Map.entry("IT", "39"), Map.entry("ES", "34"),
+            Map.entry("NL", "31"), Map.entry("BE", "32"), Map.entry("CH", "41"), Map.entry("ZA", "27"),
+            Map.entry("IN", "91"));
+
     private Countries() {
     }
 
@@ -122,19 +132,35 @@ public final class Countries {
         return value;
     }
 
-    // "+1 (415) 555-0100" -> "+14155550100". "0044..." -> "+44...".
-    // For India, a 10-digit mobile number without +91 is also accepted.
+    // Returns the phone in international format: "+14155550100".
+    // Accepts "+1 (415) 555-0100", "0044 20 7946 0958", and for common countries also the
+    // national number without dial code: "415 555 0100" (US) -> "+14155550100",
+    // "020 7946 0958" (GB) -> "+442079460958", "9876543210" (IN) -> "+919876543210".
     public static String normalizePhone(String country, String raw) {
         String value = raw == null ? "" : raw.replaceAll("[\\s().-]", "");
         if (value.startsWith("00")) {
             value = "+" + value.substring(2);
         }
-        if (!value.startsWith("+") && "IN".equals(country) && value.matches("^[6-9]\\d{9}$")) {
-            value = "+91" + value;
+
+        if (!value.startsWith("+")) {
+            String dial = DIAL_CODES.get(country);
+            if (dial != null && value.matches("^\\d{6,14}$")) {
+                String national = value;
+                if (dial.equals("1") && national.length() == 11 && national.startsWith("1")) {
+                    national = national.substring(1);           // US/CA: "1 415 555 0100"
+                } else if (!country.equals("IT") && national.startsWith("0")) {
+                    national = national.substring(1);           // drop the local "0" (UK, AU, DE, FR ...)
+                }
+                value = "+" + dial + national;
+            }
         }
+
         if (!PHONE.matcher(value).matches()) {
             throw new IllegalArgumentException(
                     "Enter the phone number with its country code, for example +1 415 555 0100.");
+        }
+        if (value.startsWith("+1") && !value.matches("^\\+1\\d{10}$")) {
+            throw new IllegalArgumentException("Enter a valid 10-digit phone number for " + name(country) + ".");
         }
         if (value.startsWith("+91") && !value.matches("^\\+91[6-9]\\d{9}$")) {
             throw new IllegalArgumentException("Enter a valid 10-digit Indian mobile number after +91.");
