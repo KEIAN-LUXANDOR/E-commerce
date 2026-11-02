@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -42,17 +43,20 @@ public class OrderService {
     private final StockService stockService;
     private final AddressRepository addressRepository;
     private final EmailVerificationGuard emailVerificationGuard;
+    private final String storeCurrency;
 
     public OrderService(OrderRepository orderRepository,
                         CartService cartService,
                         StockService stockService,
                         AddressRepository addressRepository,
-                        EmailVerificationGuard emailVerificationGuard) {
+                        EmailVerificationGuard emailVerificationGuard,
+                        @Value("${app.store.currency:USD}") String storeCurrency) {
         this.orderRepository = orderRepository;
         this.cartService = cartService;
         this.stockService = stockService;
         this.addressRepository = addressRepository;
         this.emailVerificationGuard = emailVerificationGuard;
+        this.storeCurrency = storeCurrency;
     }
 
     // Creates an order from the cart and reserves the diamonds.
@@ -82,7 +86,8 @@ public class OrderService {
                 "KL" + orderRepository.nextOrderNumber(),
                 userId,
                 toShippingAddress(address),
-                Instant.now().plus(PAYMENT_WINDOW));
+                Instant.now().plus(PAYMENT_WINDOW),
+                storeCurrency);
 
         for (CartLineResponse line : cart.items()) {
             ProductResponse product = line.product();

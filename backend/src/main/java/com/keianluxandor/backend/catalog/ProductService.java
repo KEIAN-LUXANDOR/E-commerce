@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -27,15 +28,18 @@ public class ProductService {
     private final ProductImageRepository productImageRepository;
     private final ProductVariantRepository productVariantRepository;
     private final DiamondDetailsRepository diamondDetailsRepository;
+    private final String storeCurrency;
 
     public ProductService(ProductRepository productRepository,
                           ProductImageRepository productImageRepository,
                           ProductVariantRepository productVariantRepository,
-                          DiamondDetailsRepository diamondDetailsRepository) {
+                          DiamondDetailsRepository diamondDetailsRepository,
+                          @Value("${app.store.currency:USD}") String storeCurrency) {
         this.productRepository = productRepository;
         this.productImageRepository = productImageRepository;
         this.productVariantRepository = productVariantRepository;
         this.diamondDetailsRepository = diamondDetailsRepository;
+        this.storeCurrency = storeCurrency;
     }
 
     @Transactional(readOnly = true)
@@ -91,7 +95,7 @@ public class ProductService {
         List<ProductImage> images = productImageRepository.findByProductIdOrderBySortOrderAsc(product.getId());
         List<ProductVariant> variants = productVariantRepository.findByProductIdAndActiveTrueOrderBySortOrderAsc(product.getId());
 
-        return ProductResponse.from(product, diamond, images, variants);
+        return ProductResponse.from(product, diamond, images, variants, storeCurrency);
     }
 
     // Used by the wishlist: true if the product exists and is ACTIVE
@@ -184,7 +188,8 @@ public class ProductService {
                         product,
                         diamondsByProduct.get(product.getId()),
                         imagesByProduct.getOrDefault(product.getId(), List.of()),
-                        variantsByProduct.getOrDefault(product.getId(), List.of())))
+                        variantsByProduct.getOrDefault(product.getId(), List.of()),
+                        storeCurrency))
                 .toList();
     }
 }
