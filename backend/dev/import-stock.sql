@@ -2,15 +2,17 @@
 -- Import diamonds from the supplier stock sheet (Excel saved as "CSV UTF-8").
 --
 -- PREVIEW (nothing saved):
---   psql -v rate=88 -v markup=2 -f /tmp/import-stock.sql
+--   psql -v markup=1 -f /tmp/import-stock.sql
 -- SAVE:
---   psql -v rate=88 -v markup=2 -v apply=1 -f /tmp/import-stock.sql
+--   psql -v markup=1 -v apply=1 -f /tmp/import-stock.sql
 --
--- rate     = rupees per US dollar          (required)
--- markup   = selling price / cost          (required, e.g. 2 = double the cost)
--- round_to = round selling price to this many rupees (optional, default 100)
+-- Everything is in US dollars (USD). The supplier sheet is in USD and the shop sells in USD.
 --
--- Selling price (INR) = Total Price (USD) x rate x markup, rounded.
+-- markup   = selling price / cost          (required, 1 = sell at cost, 2 = double the cost)
+-- round_to = round the selling price to this many dollars (optional, default 0.01 = nearest cent)
+--
+-- Selling price (USD) = Total Price (USD) x markup, rounded.
+-- The database stores prices in cents (USD 116.15 = 11615) in the column price_paise.
 -- If "Total Price" is empty, Price (per carat) x Weight is used.
 -- Re-running with a newer sheet UPDATES stones by Stock # (price, availability, grades, photos).
 -- It never changes stock of stones already sold or reserved on our website.
@@ -18,19 +20,14 @@
 \set ON_ERROR_STOP on
 \pset footer off
 
-\if :{?rate}
-\else
-\echo 'ERROR: give the exchange rate, e.g.  -v rate=88'
-\quit
-\endif
 \if :{?markup}
 \else
-\echo 'ERROR: give the markup, e.g.  -v markup=2'
+\echo 'ERROR: give the markup, e.g.  -v markup=1  (1 = sell at cost)'
 \quit
 \endif
 \if :{?round_to}
 \else
-\set round_to 100
+\set round_to 0.01
 \endif
 
 BEGIN;
@@ -163,7 +160,7 @@ DELETE FROM stock_raw WHERE btrim(coalesce(c1, '')) = '' AND btrim(coalesce(c3, 
 -- ---------- helpers ----------
 -- Empty, "-" and spaces mean "no value"
 CREATE FUNCTION pg_temp.clean(v text) RETURNS text LANGUAGE sql IMMUTABLE AS
-$f$ SELECT NULLIF(NULLIF(btrim(v, E' \t\r\n '), ''), '-') $f$;
+$f$ SELECT NULLIF(NULLIF(btrim(v, E' \t\r\n '), ''), '-') $f$;
 -- A number, or NULL if it isn't one
 CREATE FUNCTION pg_temp.num(v text) RETURNS numeric LANGUAGE sql IMMUTABLE AS
 $f$ SELECT CASE WHEN replace(pg_temp.clean(v), ',', '') ~ '^[0-9]+(\.[0-9]+)?$'
@@ -196,7 +193,7 @@ SELECT
     pg_temp.num(r.c24)                                            AS table_pct,
     upper(pg_temp.clean(r.c25))                                   AS fluor_raw,
     upper(pg_temp.clean(r.c27))                                   AS lab_raw,
-    upper(regexp_replace(coalesce(pg_temp.clean(r.c28), ''), '\s', '', 'g')) AS cert_raw,
+    upper(regexp_replace(coalesce(pg_temp.clean(r.c28), ''), '[^A-Za-z0-9]', '', 'g')) AS cert_raw,
     pg_temp.num(r.c38)                                            AS depth_mm,
     pg_temp.num(r.c39)                                            AS length_mm,
     pg_temp.num(r.c40)                                            AS width_mm,
@@ -209,7 +206,7 @@ ALTER TABLE stock
     ADD COLUMN shape text, ADD COLUMN color text, ADD COLUMN clarity text, ADD COLUMN cut text,
     ADD COLUMN cut_invalid boolean, ADD COLUMN polish text, ADD COLUMN symmetry text,
     ADD COLUMN fluorescence text, ADD COLUMN lab text, ADD COLUMN origin text, ADD COLUMN growth_type text,
-    ADD COLUMN certificate_number text, ADD COLUMN price_paise bigint,
+    ADD COLUMN certificate_number text, ADD COLUMN price_cents bigint,
     ADD COLUMN images text[], ADD COLUMN video_url text, ADD COLUMN media_mismatch boolean,
     ADD COLUMN errors text[], ADD COLUMN warnings text[];
 
@@ -251,7 +248,8 @@ UPDATE stock SET
     growth_type = CASE WHEN growth_raw IN ('HPHT','CVD') THEN growth_raw
                        WHEN type_raw IN ('HPHT','CVD') THEN type_raw END,
     certificate_number = CASE WHEN cert_raw ~ '^[A-Z0-9]{5,20}$' THEN cert_raw END,
-    price_paise = (round(cost_usd * :'rate'::numeric * :'markup'::numeric / :'round_to'::numeric)
+    -- Selling price in US cents: USD cost x markup, rounded to round_to dollars
+    price_cents = (round(cost_usd * :'markup'::numeric / :'round_to'::numeric)
                    * :'round_to'::numeric * 100)::bigint,
     -- Photos = links ending in .jpg/.png/.webp; the 360 viewer = gem360 page or video file
     images = ARRAY(SELECT l FROM unnest(links) WITH ORDINALITY AS t(l, n)
@@ -276,7 +274,8 @@ UPDATE stock s SET errors = array_remove(ARRAY[
     CASE WHEN s.symmetry IS NULL THEN 'unknown or empty Symmetry "' || coalesce(s.symmetry_raw, '') || '"' END,
     CASE WHEN s.fluorescence IS NULL THEN 'unknown Fluorescence "' || s.fluor_raw || '"' END,
     CASE WHEN s.lab IS NULL THEN 'Lab must be GIA, IGI or HRD (got "' || coalesce(s.lab_raw, '') || '")' END,
-    CASE WHEN s.price_paise IS NULL OR s.price_paise < 10000 THEN 'missing or invalid Total Price / Price' END,
+    -- Minimum selling price: USD 1.00 (100 cents)
+    CASE WHEN s.price_cents IS NULL OR s.price_cents < 100 THEN 'missing or invalid Total Price / Price' END,
     CASE WHEN s.certificate_number IS NOT NULL
               AND (SELECT count(*) FROM stock d WHERE d.certificate_number = s.certificate_number AND d.lab = s.lab) > 1
          THEN 'Certificate # ' || s.certificate_number || ' appears more than once in the file' END,
@@ -333,7 +332,7 @@ ON CONFLICT (slug) DO UPDATE
 -- New stones get stock 1. Existing stones keep their stock, so a stone sold or reserved
 -- on our website is never put back on sale by a re-import.
 INSERT INTO product_variants (id, product_id, sku, name, price_paise, mrp_paise, stock_quantity, active, sort_order)
-SELECT gen_random_uuid(), p.id, g.stock_no, 'Single stone', g.price_paise, NULL, 1, true, 0
+SELECT gen_random_uuid(), p.id, g.stock_no, 'Single stone', g.price_cents, NULL, 1, true, 0
 FROM good g JOIN products p ON p.slug = g.slug
 ON CONFLICT (sku) DO UPDATE SET price_paise = EXCLUDED.price_paise, active = true;
 
@@ -377,7 +376,7 @@ SELECT
 
 \echo 'Price check (first 5 on sale):'
 SELECT stock_no AS "Stock #", carat AS "ct", cost_usd AS "Cost USD",
-       to_char(price_paise / 100, 'FM99,99,99,999') AS "Selling price INR"
+       '$' || to_char(price_cents / 100.0, 'FM999,999,990.00') AS "Selling price USD"
 FROM good WHERE availability = 'YES' ORDER BY excel_row LIMIT 5;
 
 \if :{?apply}
