@@ -5,3 +5,17 @@
 import/
 
 backend/logs/
+
+# Local secrets
+backend/local-secrets.properties
+
+# Database backups and seed files
+catalog-seed.sql
+shop-backup.sql
+
+# Deployment environment secrets
+deploy/.env
+deploy/*.env
+backend/local-secrets.properties
+*.tar
+*.dump
